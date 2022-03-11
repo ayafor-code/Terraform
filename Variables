@@ -1,0 +1,690 @@
+Terraform:
+=========
+Variables:
+
+## **Variables**
+
+- A variable is a value that can change, depending on conditions or on information passed to the program.
+- Variables are used to store information to be referenced and manipulated in a computer program.
+- They also provide a way of labeling data with a descriptive name, so our programs can be understood more clearly by the reader and ourselves.
+- It is helpful to think of variables as containers that hold information. Their sole purpose is to label and store data in memory. This data can then be used throughout your program.
+
+The following example shows the variable types that are supported by terraform.
+
+# String
+ - Strings are usually represented by a double-quoted sequence of Unicode characters, "like this"
+
+variable "vpcname" {
+  type    = string
+  default = "myvpc"
+}
+
+# Number
+- Numbers are represented by unquoted sequences of digits with or without a decimal point, like 15 or 6.283185.
+
+variable "sshport" {
+  type    = number
+  default = 22
+}
+
+#Boolean
+- Bools are represented by the unquoted symbols true and false.
+
+variable "enabled" {
+  default = false
+}
+
+# List
+- Lists is represented by a pair of square brackets containing a comma-separated sequence of values, like ["a", 15, true].
+
+variable "mylist" {
+  type    = list(string)
+  default = ["Value1", "Value2"]
+}
+
+  # How to reference List values ?
+instance_type = var.mylist[1]
+
+# Map
+- Maps/objects are represented by a pair of curly braces containing a series of <KEY> = <VALUE> pairs
+
+variable "mymap" {
+  type = map
+  default = {
+    Key1 = "Value1"
+    Key2 = "Value2"
+  }
+}
+
+  # How to reference Map values ?
+instance_type = var.mymap["key1"]
+
+# Input
+variable "inputname" {
+  type        = string
+  description = "Set the name of the VPC"
+}
+  # note that if no default value is provided, then the variable will be an input variable and will prompt you to enter a value at runtime.
+
+resource "aws_vpc" "myvpc" {
+  cidr_block = "10.0.0.0/16"
+
+  tags = {
+    Name = var.inputname
+  }
+}
+
+# Output
+output "vpcid" {
+  value = aws_vpc.myvpc.id
+}
+
+# Tuple
+- Lists/tuples are represented by a pair of square brackets containing a comma-separated sequence of values, like ["a", 15, true].
+
+variable "mytuple" {
+  type    = tuple([string, number, string])
+  default = ["cat", 1, "dog"]
+}
+
+# Objects
+variable "myobject" {
+  type = object({ name = string, port = list(number) })
+  default = {
+    name = "Landmark"
+    port = [22, 25, 80]
+  }
+}
+
+##**Variables with Lists and Maps**
+
+# AWS EC2 Instance Type - List
+variable "instance_type_list" {
+  description = "EC2 Instance Type"
+  type = list(string)
+  default = ["t3.micro", "t3.small"]
+}
+
+ #instance_type = var.instance_type_list[0]
+
+# AWS EC2 Instance Type - Map
+variable "instance_type_map" {
+  description = "EC2 Instance Type"
+  type = map(string)
+  default = {
+    "dev" = "t3.micro"
+    "qa"  = "t3.small"
+    "prod" = "t3.large"
+  }
+}
+
+ #instance_type = var.instance_type_map["qa"]
+
+
+#terraform block
+terraform {
+  required_version = "~> 1.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 3.0" # Optional but recommended in production
+    }
+  }
+}
+
+
+  #provider block
+provider "aws" {
+  region  = var.aws_region
+  profile = "Kenmak"
+}
+
+  #resource block
+resource "aws_instance" "my_ec2" {
+  ami = var.my_ami
+  instance_type = var.my_instance_type
+  key_name = var.my_key
+  #security_groups = [aws_security_group.vpc-web.name]
+  tags = {
+    "Name" = "Ec2-Demo"
+  }
+}
+
+variable "aws_region"{
+  type = string
+  default = "us-west-1"
+}
+
+variable "my_ami"{
+  type = string
+  default = "ami-0e0bf4b3a0c0e0adc"
+}
+
+variable "my_instance_type"{
+  type = string
+  default = "t2.micro"
+}
+
+variable "my_key"{
+  type = string
+  default = "Automationkey"
+}
+
+================================================================================================
+#! /bin/bash
+# Instance Identity Metadata Reference - https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-identity-documents.html
+sudo yum update -y
+sudo yum install -y httpd
+sudo systemctl enable httpd
+sudo service httpd start
+sudo echo '<h1>Welcome to Landmark Technologies</h1>' | sudo tee /var/www/html/index.html
+sudo mkdir /var/www/html/app1
+sudo echo '<!DOCTYPE html> <html> <body style="background-color:rgb(250, 210, 210);"> <h1>Welcome to Landmark Technologies</h1> <p>Terraform Demo</p> <p>Application Version: V1</p> </body></html>' | sudo tee /var/www/html/app1/index.html
+sudo curl http://169.254.169.254/latest/dynamic/instance-identity/document -o /var/www/html/app1/metadata.html
+
+=============================================================================================================================
+
+data sources:
+=============
+
+data "aws_ami" "amzlinux2" {
+  most_recent      = true
+  owners           = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["amzn2-ami-hvm-*-gp2"]
+  }
+
+  filter {
+    name   = "root-device-type"
+    values = ["ebs"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
+
+}
+
+
+amzn2-ami-hvm-*-gp2
+
+
+security group:
+===============
+
+resource "aws_security_group" "vpc-ssh" {
+  name        = "vpc-ssh"
+  description = "Dev VPC ssh"
+
+
+  ingress = 
+    {
+      description      = "Allow port 22"
+      from_port        = 22
+      to_port          = 22
+      protocol         = "tcp"
+      cidr_blocks      = ["0.0.0.0/0"]
+    }
+  
+
+  egress = 
+    {
+      description = "Allow all outbound"
+      from_port        = 0
+      to_port          = 0
+      protocol         = "-1"
+      cidr_blocks      = ["0.0.0.0/0"]
+    
+    }
+  
+
+  tags = {
+    Name = "vpc-ssh"
+  }
+}
+
+# Web- traffic security group
+resource "aws_security_group" "vpc-web" {
+  name        = "vpc-web"
+  description = "Dev VPC Web"
+
+  ingress {
+    description = "Allow Port 80"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  ingress {
+    description = "Allow Port 443"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }  
+  egress {
+    description = "Allow all ip and ports outbound"    
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "vpc-web"
+  }
+}
+
+# Dynamic provisioning of security group
+========================================
+variable "ingressrules"{
+  type = list(number)
+  default = [80,443,8080]
+}
+
+variable "egressrules"{
+  type = list(number)
+  default = [80,443,8080,3306,53]
+}
+
+
+security_groups = [aws_security_group.vpc-web.name]
+
+resource "aws_security_group" "vpc-web" {
+  name        = "vpc-web"
+  description = "Dev VPC Web"
+  
+  dynamic "ingress" {
+    iterator = port
+    for_each = var.ingressrules
+    content {
+    from_port   = port.value
+    to_port     = port,value
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  
+  dynamic "egressrules" {
+    iterator = port
+    for_each = var.egressrules
+    content {
+    from_port   = port.value
+    to_port     = port,value
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+
+  tags = {
+    Name = "vpc-web"
+  }
+}
+================================
+# Get latest AMI ID for Amazon Linux2 OS
+data "aws_ami" "amzlinux2" {
+  most_recent      = true
+  owners           = ["amazon"]
+  filter {
+    name   = "name"
+    values = ["amzn2-ami-hvm-*-gp2"]
+  }
+  filter {
+    name   = "root-device-type"
+    values = ["ebs"]
+  }
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
+}
+=======================================
+resource "aws_instance" "ec2" {
+    ami = data.aws_ami.amzlinux2.id
+    instance_type = var.my_instance_type
+    security_groups = [aws_security_group.webtraffic.name]
+
+    tags = {
+      "Name" = "Prod_ec2"
+    }
+}
+=========================================================
+# Terraform Block
+terraform {
+  required_version = "~> 1.0" # which means any version equal & above 0.14 like 0.15, 0.16 etc and < 1.xx
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 3.0"
+    }
+  }
+}
+
+# Provider Block
+provider "aws" {
+  region  = "us-west-1"
+  profile = "Kenmak"
+}
+=============================================
+variable "ingressrules" {
+    type = list(number)
+    default = [80,443,8080]
+}
+
+variable "egressrules" {
+    type = list(number)
+    default = [80,443,25,3306,53,8080]
+}
+
+variable "my_instance_type"{
+  type = string
+  default = "t2.micro"
+}
+==================================================
+
+
+Modules:
+
+# **Terraform Modules**
+=======================
+  - enables code reuse
+  - supports versioning to maintain compatibility
+  - stores code remotely
+  - enables easier testing.
+  - enables encapsulation with all the separate resources under one configuration block
+  - modules can be nested inside other modules, allowing you to quickly spin up whole separate environments.
+  - can be referred using source attribute
+
+  - supports Local and Remote modules:
+
+        - Local modules are stored alongside the Terraform configuration (in a separate directory, outside  of each environment but in the same repository) with source path ./ or ../
+        - Remote modules are stored externally in a separate repository, and supports versioning
+
+**Supported backends**:
+======================
+  - Local paths
+  - Terraform Registry
+  - GitHub
+  - Bitbucket
+  - Generic Git, Mercurial repositories
+  - HTTP URLs
+  - S3 buckets
+  - GCS buckets
+
+**Module requirements**:
+========================
+  - must be on GitHub and must be a public repo, if using public registry.
+  - must be named terraform-<PROVIDER>-<NAME>, where <NAME> reflects the type of infrastructure the module manages and <PROVIDER> is the main provider where it creates that infrastructure. for e.g. terraform-google-vault or terraform-aws-ec2-instance.
+  - must maintain x.y.z tags for releases to identify module versions. Release tag names must be a semantic version, which can optionally be prefixed with a v for example, v1.0.4 and 0.9.2. Tags that don’t look like version numbers are ignored.
+  - must maintain a Standard module structure, which allows the registry to inspect the module and generate documentation, track resource usage, parse submodules and examples, and more.
+
+Example1:
+=====================================
+  variable "ec2name" {
+    type = string
+}
+
+resource "aws_instance" "ec2" {
+    ami = data.aws_ami.amzlinux2.id
+    instance_type = "t2.micro"
+    tags = {
+        Name = var.ec2name
+    }
+}
+
+output "instance_id" {
+    value = aws_instance.ec2.id
+  }
+
++++++++++++++++++++++++++++++++++++++++
+# Get latest AMI ID for Amazon Linux2 OS
+data "aws_ami" "amzlinux2" {
+  most_recent      = true
+  owners           = ["amazon"]
+  filter {
+    name   = "name"
+    values = ["amzn2-ami-hvm-*-gp2"]
+  }
+  filter {
+    name   = "root-device-type"
+    values = ["ebs"]
+  }
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
+}
+++++++++++++++++++++++++++++++++++++++
+# Terraform Block
+terraform {
+  required_version = "~> 1.0" # which means any version equal & above 0.14 like 0.15, 0.16 etc and < 1.xx
+  required_providers {
+    aws = {
+      source = "hashicorp/aws"
+      version = "~> 3.0"
+    }
+  }
+}
+# Provider Block
+provider "aws" {
+  region = "us-west-1"
+  profile = "Kenmak"
+}
+
+module "ec2module" {
+    source = "./ec2"
+    ec2name = "Name From Module"
+}
+
+output "module_output" {
+    value = module.ec2module.instance_id
+}
+===============================================================================
+
+Example 2:
+
+db:
+===
+# Get latest AMI ID for Amazon Linux2 OS
+data "aws_ami" "amzlinux2" {
+  most_recent      = true
+  owners           = ["amazon"]
+  filter {
+    name   = "name"
+    values = ["amzn2-ami-hvm-*-gp2"]
+  }
+  filter {
+    name   = "root-device-type"
+    values = ["ebs"]
+  }
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
+}
++++++++++++++++++++++++++++++++++++
+resource "aws_instance" "db" {
+    ami = data.aws_ami.amzlinux2.id
+    instance_type = "t2.micro"
+
+    tags = {
+        Name = "DB Server"
+    }
+}
+
+output "PrivateIP" {
+    value = aws_instance.db.private_ip
+}
+==============================================
+eip:
+===
+variable "instance_id" {
+    type = string
+}
+
+resource "aws_eip" "web_ip" {
+    instance = var.instance_id
+}
+
+output "PublicIP" {
+    value = aws_eip.web_ip.public_ip
+}
+===========================================
+
+sg:
+==
+variable "ingress" {
+    type = list(number)
+    default = [80,443]
+}
+
+variable "egress" {
+    type = list(number)
+    default = [80,443]
+}
+
+output "sg_name" {
+    value = aws_security_group.web_traffic.name
+}
+
+resource "aws_security_group" "web_traffic" {
+    name = "Allow Web Traffic"
+
+    dynamic "ingress" {
+        iterator = port
+        for_each = var.ingress
+        content {
+            from_port = port.value
+            to_port = port. value
+            protocol = "TCP"
+            cidr_blocks = ["0.0.0.0/0"]
+        }
+    }
+
+        dynamic "egress" {
+        iterator = port
+        for_each = var.egress
+        content {
+            from_port = port.value
+            to_port = port. value
+            protocol = "TCP"
+            cidr_blocks = ["0.0.0.0/0"]
+        }
+    }
+}
+=======================================================
+
+web:
+===
+# Get latest AMI ID for Amazon Linux2 OS
+data "aws_ami" "amzlinux2" {
+  most_recent      = true
+  owners           = ["amazon"]
+  filter {
+    name   = "name"
+    values = ["amzn2-ami-hvm-*-gp2"]
+  }
+  filter {
+    name   = "root-device-type"
+    values = ["ebs"]
+  }
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
+}
++++++++++++++++++++++++++++++++++++
+resource "aws_instance" "web" {
+    ami = data.aws_ami.amzlinux2.id
+    instance_type = "t2.micro"
+    security_groups = [module.sg.sg_name]
+    user_data = file("./web/server-script.sh")
+    tags = {
+        Name = "Web Server"
+    }
+}
+
+output "pub_ip" {
+    value = module.eip.PublicIP
+}
+
+module "eip" {
+    source = "../eip"
+    instance_id = aws_instance.web.id
+}
+
+module "sg" {
+    source = "../sg"
+}
++++++++++++++++++++++++++++++++++++++++++++++++
+#! /bin/bash
+# Instance Identity Metadata Reference - https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-identity-documents.html
+sudo yum update -y
+sudo yum install -y httpd
+sudo systemctl enable httpd
+sudo service httpd start
+sudo echo '<h1>Welcome to Landmark Technologies</h1>' | sudo tee /var/www/html/index.html
+sudo mkdir /var/www/html/app1
+sudo echo '<!DOCTYPE html> <html> <body style="background-color:rgb(250, 210, 210);"> <h1>Welcome to Landmark Technologies</h1> <p>Terraform Demo</p> <p>Application Version: V1</p> </body></html>' | sudo tee /var/www/html/app1/index.html
+sudo curl http://169.254.169.254/latest/dynamic/instance-identity/document -o /var/www/html/app1/metadata.html
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# Terraform Block
+terraform {
+  required_version = "~> 1.0" # which means any version equal & above 0.14 like 0.15, 0.16 etc and < 1.xx
+  required_providers {
+    aws = {
+      source = "hashicorp/aws"
+      version = "~> 3.0"
+    }
+  }
+}
+# Provider Block
+provider "aws" {
+  region = "us-west-1"
+  profile = "Kenmak"
+}
+
+module "db" {
+    source = "./db"
+
+}
+
+module "web" {
+    source = "./web"
+}
+
+output "PrivateIP" {
+    value = module.db.PrivateIP
+}
+
+output "PublicIP" {
+    value = module.web.pub_ip
+}
+
+
+
+
+
