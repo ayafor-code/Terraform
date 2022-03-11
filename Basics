@@ -1,0 +1,270 @@
+a) Credentials:
+  The AWS provider offers a flexible means of providing credentials for authentication. The following methods are supported, in this order, and explained below:
+
+- **Static credentials**
+     provider "aws" {
+       region     = "us-west-2"
+       access_key = "my-access-key"
+       secret_key = "my-secret-key"
+    }
+- **Environment variables**
+     $ export AWS_ACCESS_KEY_ID="accesskey"
+     $ export AWS_SECRET_ACCESS_KEY="secretkey"
+     $ export AWS_DEFAULT_REGION="us-west-2"
+
+- **Shared credentials/configuration file**
+    provider "aws" {
+      region                  = "us-west-2"
+      shared_credentials_file = "/Users/tf_user/.aws/creds"
+      profile                 = "dev"
+  }
+
+  b) Command basics:
+    #**terraform init**
+• initializes a working directory containing Terraform configuration files.
+• performs
+        backend initialization
+        storage for terraform state file.
+        modules installation,
+        downloaded from terraform registry to local path
+        provider(s) plugins installation,
+        the plugins are downloaded in the sub-directory of the present working directory at the path of .terraform/plugins
+• supports -upgrade to update all previously installed plugins to the newest version that complies with the configuration’s version constraints
+• is safe to run multiple times, to bring the working directory up to date with changes in the configuration
+• does not delete the existing configuration or state
+
+# **terraform validate**
+• validates syntactically for format and correctness.
+• is used to validate/check the syntax of the Terraform files.
+• verifies whether a configuration is syntactically valid and internally consistent, regardless of any provided variables or existing state.
+• A syntax check is done on all the terraform files in the directory, and will display an error if any of the files doesn’t validate.
+
+# **terraform plan**
+• create a execution plan
+• traverses each vertex and requests each provider using parallelism
+• calculates the difference between the last-known state and
+the current state and presents this difference as the output of the terraform plan operation to user in their terminal
+• does not modify the infrastructure or state.
+• allows a user to see which actions Terraform will perform prior to making any changes to reach the desired state
+• will scan all *.tf  files in the directory and create the plan
+• will perform refresh for each resource and might hit rate limiting issues as it calls provider APIs
+• all resources refresh can be disabled or avoided using
+      -refresh=false or
+       target=xxxx or
+       break resources into different directories.
+• supports -out to save the plan
+
+#**terraform apply**
+• apply changes to reach the desired state.
+• scans the current directory for the configuration and applies the changes appropriately.
+• can be provided with a explicit plan, saved as out from terraform plan
+• If no explicit plan file is given on the command line, terraform apply will create a new plan automatically
+  and prompt for approval to apply it
+• will modify the infrastructure and the state.
+• if a resource successfully creates but fails during provisioning,
+    - Terraform will error and mark the resource as “tainted”.
+    - A resource that is tainted has been physically created, but can’t be considered safe to use since provisioning failed.
+    - Terraform also does not automatically roll back and destroy the resource during the apply when the failure happens, because that would go against the execution plan: the execution plan would’ve said a resource will be created, but does not say it will ever be deleted.
+• does not import any resource.
+• supports -auto-approve to apply the changes without asking for a confirmation
+• supports -target to apply a specific module
+
+#**terraform refresh**
+• used to reconcile the state Terraform knows about (via its state file) with the real-world infrastructure
+• does not modify infrastructure, but does modify the state file
+destroy
+• destroy the infrastructure and all resources
+• modifies both state and infrastructure
+• terraform destroy -target can be used to destroy targeted resources
+• terraform plan -destroy allows creation of destroy plan
+
+#**terraform import**
+• helps import already-existing external resources, not managed by Terraform, into Terraform state and allow it to manage those resources
+• Terraform is not able to auto-generate configurations for those imported modules, for now, and requires you to first write the resource definition in Terraform and then import this resource
+
+#**terraform taint**
+• marks a Terraform-managed resource as tainted, forcing it to be destroyed and recreated on the next apply.
+• will not modify infrastructure, but does modify the state file in order to mark a resource as tainted. Infrastructure and state are changed in next apply.
+• can be used to taint a resource within a module
+
+#**terraform fmt**
+• format to lint the code into a standard format
+
+#**terraform console**
+• command provides an interactive console for evaluating expressions.
+
+c) Top level blocks:
+ #Block-1: **Terraform Settings Block**
+terraform {
+  required_version = "~> 0.14" 1.2/3/4/5
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 3.0"
+    }
+  }
+
+  +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  # Adding Backend as S3 for Remote State Storage with State Locking
+  backend "s3" {
+    bucket = "terraform-mylandmark"
+    key    = "prod/terraform.tfstate"
+    region = "us-west-2"
+    # For State Locking
+    dynamodb_table = "terraform-lock"
+  }
+}
+
+resource "aws_dynamodb_table" “tf_lock" {
+  name = "terraform-lock"
+  hash_key = "LockID"
+  read_capacity = 3
+  write_capacity = 3
+  attribute {
+     name = "LockID"
+     type = "S"
+   }
+  tags  {
+    Name = "Terraform Lock Table"
+   }
+ }
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+#####################################################################
+# Block-2: **Provider Block**
+provider "aws" {
+  profile = "default" # AWS Credentials Profile configured on your local desktop terminal  $HOME/.aws/credentials
+  region  = "us-west-2"
+}
+#####################################################################
+# Block-3: **Resource Block**
+resource "aws_instance" "class25" {
+  ami           = "ami-0e5b6b6a9f3db6db8" # Amazon Linux
+  instance_type = var.instance_type
+}
+#####################################################################
+# Block-4: **Input Variables Block**
+variable "instance_type" {
+  default = "t2.micro"
+  description = "EC2 Instance Type"
+  type = string
+}
+#####################################################################
+# Block-5: **Output Values Block**
+output "ec2_instance_publicip" {
+  description = "EC2 Instance Public IP"
+  value = aws_instance.class25.public_ip
+}
+#####################################################################
+# Block-6: **Local Values Block**
+# Create S3 Bucket - with Input Variables & Local Values
+locals {
+  bucket-name-prefix = "${var.app_name}-${var.environment_name}"
+}
+#####################################################################
+# Block-7: **Data sources Block**
+# Get latest AMI ID for Amazon Linux2 OS
+data "aws_ami" "amzlinux" {
+  most_recent      = true
+  owners           = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["amzn2-ami-hvm-*"]
+  }
+
+  filter {
+    name   = "root-device-type"
+    values = ["ebs"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
+
+}
+#####################################################################
+# Block-8: **Modules Block**
+# AWS EC2 Instance Module
+
+module "ec2_cluster" {
+  source                 = "terraform-aws-modules/ec2-instance/aws"
+  version                = "~> 2.0"
+
+  name                   = "my-modules-demo"
+  instance_count         = 2
+
+  ami                    = data.aws_ami.amzlinux.id
+  instance_type          = "t2.micro"
+  key_name               = "terraform-key"
+  monitoring             = true
+  vpc_security_group_ids = ["sg-08b25c5a5bf489ffa"]  # Get Default VPC Security Group ID and replace
+  subnet_id              = "subnet-4ee95470" # Get one public subnet id from default vpc and replace
+  user_data               = file("apache-install.sh")
+
+  tags = {
+    Terraform   = "true"
+    Environment = "dev"
+  }
+} 
+
+d) Language syntax:
+- A block is a container for other content
+# Template
+
+     <BLOCK TYPE> "<BLOCK LABEL>" "<BLOCK LABEL>"   {
+       # Block body
+      <IDENTIFIER> = <EXPRESSION> # Argument
+     }
+
+# AWS Example
+resource "aws_instance" "ec2demo" {
+  # BLOCK BODY
+  ami           = "ami-04d29b6f966df1537" # Argument
+  instance_type = var.instance_type # Argument with value as expression (Variable value replaced from varibales.tf
+
+      network_interface {
+       # ...
+    }
+  }
+
+- A block has a type (resource in this example). Each block type defines how many labels must follow the type keyword. The resource block type expects two labels, which are aws_instance and ec2demo in the example above. A particular block type may have any number of required labels, or it may require none as with the nested network_interface block type.
+
+- After the block type keyword and any labels, the block body is delimited by the { and } characters. Within the block body, further arguments and blocks may be nested, creating a hierarchy of blocks and their associated arguments.
+
+## **Step-02: Arguments, Expressions, Attributes & Meta-Arguments**
+
+# Arguments
+  -They assign a value to a name. They appear within blocks. Arguments can be required or optional.
+
+# Expressions
+- They represent a value, either literally or by referencing and combining other values. They appear as values for arguments, or within other expressions.
+
+# Attributes
+- They represent a named piece of data that belongs to some kind of object. The value of an attribute can be referenced in expressions using a dot-separated notation, like aws_instance.example.id.
+- The format looks like `resource_type.resource_name.attribute_name`
+
+# Identifiers
+- Argument names, block type names, and the names of most Terraform-specific constructs like resources, input variables, etc. are all identifiers.
+
+- Identifiers can contain letters, digits, underscores (_), and hyphens (-). The first character of an identifier must not be a digit, to avoid ambiguity with literal numbers.
+
+# Comments
+- The Terraform language supports three different syntaxes for comments:
+
+The # begins a single-line comment, ending at the end of the line.
+// also begins a single-line comment, as an alternative to #.
+/* and */ are start and end delimiters for a comment that might span over multiple lines.
+The # single-line comment style is the default comment style and should be used in most cases. Automatic configuration formatting tools may automatically transform // comments into # comments, since the double-slash style is not idiomatic.
+
+==============================================================
+# Project 1
+1) Create an ec2 instance
+2) Attach an elastic IP to the instance
+3) Output the value of the public IP of the eip.
+==============================================================
